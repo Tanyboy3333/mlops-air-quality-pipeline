@@ -32,7 +32,12 @@ def predict_next_3_days():
     for i in range(1, 4):
         future_time = datetime.utcnow() + timedelta(days=i)
 
-        # Here we just reuse the latest features; in real use you'd fetch forecasted values
+        # Fill missing values with defaults
+        temperature = base_features['temperature'] if pd.notnull(base_features['temperature']) else 0.0
+        humidity = base_features['humidity'] if pd.notnull(base_features['humidity']) else 0.0
+        pressure = base_features['pressure'] if pd.notnull(base_features['pressure']) else 1013.0  # Standard atmospheric pressure
+
+        # Build input dataframe
         X_future = pd.DataFrame([{
             'pm25': base_features['pm25'],
             'pm10': base_features['pm10'],
@@ -40,11 +45,15 @@ def predict_next_3_days():
             'so2': base_features['so2'],
             'co': base_features['co'],
             'o3': base_features['o3'],
-            'temperature': base_features['temperature'],
-            'humidity': base_features['humidity'],
-            'pressure': base_features['pressure'],
+            'temperature': temperature,
+            'humidity': humidity,
+            'pressure': pressure,
         }])
 
+        # Convert to float to ensure correct type for prediction
+        X_future = X_future.astype(float)
+
+        # Predict
         pred = model.predict(X_future)[0]
         results.append(f"{future_time.date()}: Predicted AQI = {pred:.2f}")
 
