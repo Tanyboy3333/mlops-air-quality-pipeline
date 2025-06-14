@@ -2,70 +2,84 @@ import sqlite3
 import pandas as pd
 import joblib
 import gradio as gr
+import requests
 from datetime import datetime, timedelta
 
 DB_NAME = 'feature_store.db'
-MODEL_PATH = 'models/latest_model.pkl'  # Always load latest model
-
-def load_latest_features():
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql_query(
-        "SELECT * FROM features ORDER BY timestamp DESC LIMIT 1",
-        conn
-    )
-    conn.close()
-    return df
+MODEL_PATH = 'models/latest_model.pkl'
+API_KEY = 'cdc44044452cf706943159b88eb2bc4f'  # Replace with your OpenWeather API key
 
 def load_model():
     return joblib.load(MODEL_PATH)
 
 model = load_model()
 
-def predict_next_3_days():
-    df_latest = load_latest_features()
-    if df_latest.empty:
-        return "No data available to base prediction on."
+def fetch_current_data(lat, lon):
+    api_url = f'http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}'
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        data = response.json()
+        if 'list' in data and len(data['list']) > 0:
+            return data['list'][0]  # Latest data point
+    return None
 
-    base_features = df_latest.iloc[0]
+def predict_next_3_days(state, lat, lon):
+    entry = fetch_current_data(lat, lon)
+    if entry is None:
+        return f"Could not fetch data for {state} at ({lat}, {lon})."
+
+    components = entry.get('components', {})
+    
+    # Handle missing components gracefully
+    pm25 = components.get('pm2_5', 0.0)
+    pm10 = components.get('pm10', 0.0)
+    no2 = components.get('no2', 0.0)
+    so2 = components.get('so2', 0.0)
+    co = components.get('co', 0.0)
+    o3 = components.get('o3', 0.0)
+
+    # temperature, humidity, pressure not available from this API — use default values
+    temperature = 0.0
+    humidity = 0.0
+    pressure = 1013.0
+
     results = []
-
     for i in range(1, 4):
         future_time = datetime.utcnow() + timedelta(days=i)
-
-        # Fill missing values with defaults
-        temperature = base_features['temperature'] if pd.notnull(base_features['temperature']) else 0.0
-        humidity = base_features['humidity'] if pd.notnull(base_features['humidity']) else 0.0
-        pressure = base_features['pressure'] if pd.notnull(base_features['pressure']) else 1013.0  # Standard atmospheric pressure
-
-        # Build input dataframe
+        
         X_future = pd.DataFrame([{
-            'pm25': base_features['pm25'],
-            'pm10': base_features['pm10'],
-            'no2': base_features['no2'],
-            'so2': base_features['so2'],
-            'co': base_features['co'],
-            'o3': base_features['o3'],
+            'pm25': pm25,
+            'pm10': pm10,
+            'no2': no2,
+            'so2': so2,
+            'co': co,
+            'o3': o3,
             'temperature': temperature,
             'humidity': humidity,
             'pressure': pressure,
         }])
 
-        # Convert to float to ensure correct type for prediction
         X_future = X_future.astype(float)
-
-        # Predict
         pred = model.predict(X_future)[0]
         results.append(f"{future_time.date()}: Predicted AQI = {pred:.2f}")
 
-    return "\n".join(results)
+    return f"🌍 Location: {state} ({lat}, {lon})\n\n" + "\n".join(results)
 
 with gr.Blocks() as demo:
     gr.Markdown("# 🌤 Air Quality 3-Day Forecast App")
-    gr.Markdown("This app predicts the AQI for the next 3 days using the trained model.")
+    gr.Markdown("Enter a location in India (state, latitude, longitude) to get the AQI forecast.")
+
+    state_input = gr.Textbox(label="State", placeholder="e.g., Assam")
+    lat_input = gr.Number(label="Latitude", value=24.13)
+    lon_input = gr.Number(label="Longitude", value=89.46)
     predict_button = gr.Button("Predict 3-Day AQI")
     output = gr.Textbox(label="3-Day AQI Forecast")
 
-    predict_button.click(fn=predict_next_3_days, outputs=output)
+    predict_button.click(
+        fn=predict_next_3_days, 
+        inputs=[state_input, lat_input, lon_input], 
+        outputs=output
+    )
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=8080)
