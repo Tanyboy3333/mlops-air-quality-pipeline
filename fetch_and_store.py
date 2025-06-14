@@ -5,7 +5,7 @@ import datetime
 # ==========================
 # CONFIG
 # ==========================
-API_KEY = 'cdc44044452cf706943159b88eb2bc4f'  # <-- Replace with your OpenWeather API key
+API_KEY = os.getenv('cdc44044452cf706943159b88eb2bc4f')  # <-- Replace with your OpenWeather API key
 CITY = 'Assam'
 LAT = 24.13
 LON = 89.46

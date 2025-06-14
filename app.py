@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 DB_NAME = 'feature_store.db'
 MODEL_PATH = 'models/latest_model.pkl'
-API_KEY = 'cdc44044452cf706943159b88eb2bc4f'  # Replace with your OpenWeather API key
+API_KEY = os.getenv('cdc44044452cf706943159b88eb2bc4f')  # Replace with your OpenWeather API key
 
 def load_model():
     return joblib.load(MODEL_PATH)
@@ -32,11 +32,10 @@ def fetch_weather_forecast(lat, lon):
             return data['list']  # 3-hourly forecasts
     return []
 
-def predict_next_3_days(state, coords):
-    if coords is None:
-        return "Please select a location on the map."
+def predict_next_3_days(state, lat, lon):
+    if lat is None or lon is None:
+        return "❌ Please provide both latitude and longitude."
 
-    lat, lon = coords
     air_data_list = fetch_air_pollution_forecast(lat, lon)
     weather_data_list = fetch_weather_forecast(lat, lon)
 
@@ -45,7 +44,6 @@ def predict_next_3_days(state, coords):
 
     results = []
 
-    # We'll take the first available forecast for each day
     for i in range(1, 4):
         target_date = (datetime.utcnow() + timedelta(days=i)).date()
 
@@ -106,16 +104,17 @@ def predict_next_3_days(state, coords):
 # ==========================
 with gr.Blocks() as demo:
     gr.Markdown("# 🌤 Air Quality 3-Day Forecast App (India)")
-    gr.Markdown("Select a location on the map and enter the state name to get the forecast.")
+    gr.Markdown("Enter state and coordinates to get the AQI forecast.")
 
     state_input = gr.Textbox(label="State", placeholder="e.g., Assam")
-    map_input = gr.Map(label="Pick location (latitude, longitude)", value=[24.13, 89.46], zoom=4)
+    lat_input = gr.Number(label="Latitude", value=24.13)
+    lon_input = gr.Number(label="Longitude", value=89.46)
     predict_button = gr.Button("Predict 3-Day AQI")
     output = gr.Textbox(label="3-Day AQI + Forecast")
 
     predict_button.click(
         fn=predict_next_3_days,
-        inputs=[state_input, map_input],
+        inputs=[state_input, lat_input, lon_input],
         outputs=output
     )
 
