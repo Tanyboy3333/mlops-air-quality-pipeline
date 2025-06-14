@@ -4,7 +4,7 @@ import joblib
 import gradio as gr
 
 DB_NAME = 'feature_store.db'
-MODEL_PATH = 'models/latest_model.pkl'  # or point to your best .pkl
+MODEL_PATH = 'models/xgboost_regressor_20250614062318_mse76.95_r20.78.pkl'  # or point to your best .pkl
 
 def load_latest_features():
     conn = sqlite3.connect(DB_NAME)
