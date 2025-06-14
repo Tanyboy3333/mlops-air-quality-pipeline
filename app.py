@@ -102,7 +102,7 @@ def predict_next_3_days(state, lat, lon):
 # Gradio Interface
 # ==========================
 with gr.Blocks() as demo:
-    gr.Markdown("# 🌤 Air Quality 3-Day Forecast App (India)")
+    gr.Markdown("# 🌤 Air Quality 3-Day Forecast App (World)")
     gr.Markdown("Enter your state and coordinates to get the AQI forecast for the next 3 days.")
     
     gr.Markdown("""
