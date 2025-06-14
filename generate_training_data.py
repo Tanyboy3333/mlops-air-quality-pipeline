@@ -41,7 +41,8 @@ def aqi_category(aqi):
     else:
         return "Hazardous"
 
-def generate_synthetic_features(past_datetime):
+def generate_synthetic_features(target_datetime):
+    # Simulate feature values with some trends or random noise
     pm25 = random.uniform(5, 100)
     pm10 = random.uniform(10, 150)
     no2 = random.uniform(5, 80)
@@ -53,9 +54,9 @@ def generate_synthetic_features(past_datetime):
     pressure = random.uniform(980, 1050)
     aqi = int(0.5 * pm25 + 0.3 * pm10 + 0.2 * no2)
     category = aqi_category(aqi)
-    
+
     return {
-        'timestamp': past_datetime.isoformat(),
+        'timestamp': target_datetime.isoformat(),
         'pm25': pm25,
         'pm10': pm10,
         'no2': no2,
@@ -93,14 +94,26 @@ def store_features(features):
     conn.commit()
     conn.close()
 
-def main():
-    init_db()
-    days_back = 30  # Generate data for the past 30 days
+def generate_past_data(days_back=30):
     for i in range(days_back):
         date = datetime.datetime.utcnow() - datetime.timedelta(days=i)
         features = generate_synthetic_features(date)
         store_features(features)
-        print(f"Stored features for {date.date()} - AQI: {features['aqi']} ({features['category']})")
+        print(f"Stored historical features for {date.date()} - AQI: {features['aqi']} ({features['category']})")
+
+def generate_future_data(future_days=3):
+    for i in range(1, future_days + 1):
+        date = datetime.datetime.utcnow() + datetime.timedelta(days=i)
+        features = generate_synthetic_features(date)
+        store_features(features)
+        print(f"Stored future features for {date.date()} - AQI: {features['aqi']} ({features['category']})")
+
+def main():
+    init_db()
+    print("Generating historical data...")
+    generate_past_data()
+    print("Generating future forecast data...")
+    generate_future_data()
 
 if __name__ == "__main__":
     main()

@@ -5,63 +5,66 @@ import datetime
 # ==========================
 # CONFIG
 # ==========================
-API_TOKEN = '46a61c232e8d2b36d15a232b6a6dcdff09d66664'  # <-- Replace with your token
-CITY = 'barcelona'
-API_URL = f'https://api.waqi.info/feed/{CITY}/?token={API_TOKEN}'
+API_KEY = 'cdc44044452cf706943159b88eb2bc4f'  # <-- Replace with your OpenWeather API key
+CITY = 'Assam'
+LAT = 24.13
+LON = 89.46
+API_URL = f'http://api.openweathermap.org/data/2.5/air_pollution/forecast?lat={LAT}&lon={LON}&appid={API_KEY}'
 DB_NAME = 'feature_store.db'
 
 # ==========================
 # FETCH RAW DATA
 # ==========================
 def fetch_data():
-    print(f"Fetching data for {CITY}...")
+    print(f"Fetching forecast data for {CITY}...")
     response = requests.get(API_URL)
     if response.status_code == 200:
         data = response.json()
-        if data.get('status') == 'ok':
-            return data['data']
+        if 'list' in data:
+            return data['list']  # List of forecast data points
         else:
-            print("API returned error:", data.get('data'))
+            print("API returned error:", data)
     else:
         print("Failed to fetch data:", response.status_code)
-    return None
+    return []
 
 # ==========================
 # EXTRACT FEATURES + TARGET
 # ==========================
-def extract_features(raw_data):
-    iaqi = raw_data.get('iaqi', {})
+def extract_features(entry):
+    components = entry.get('components', {})
+    dt = datetime.datetime.utcfromtimestamp(entry.get('dt')).isoformat()
     features = {
-        'timestamp': datetime.datetime.utcnow().isoformat(),
-        'pm25': iaqi.get('pm25', {}).get('v'),
-        'pm10': iaqi.get('pm10', {}).get('v'),
-        'no2': iaqi.get('no2', {}).get('v'),
-        'so2': iaqi.get('so2', {}).get('v'),
-        'co': iaqi.get('co', {}).get('v'),
-        'o3': iaqi.get('o3', {}).get('v'),
-        'temperature': iaqi.get('t', {}).get('v'),
-        'humidity': iaqi.get('h', {}).get('v'),
-        'pressure': iaqi.get('p', {}).get('v'),
-        'aqi': raw_data.get('aqi'),
-        'category': aqi_category(raw_data.get('aqi'))
+        'timestamp': dt,
+        'pm25': components.get('pm2_5'),
+        'pm10': components.get('pm10'),
+        'no2': components.get('no2'),
+        'so2': components.get('so2'),
+        'co': components.get('co'),
+        'o3': components.get('o3'),
+        'temperature': None,  # Not provided by this API
+        'humidity': None,     # Not provided by this API
+        'pressure': None,     # Not provided by this API
+        'aqi': entry.get('main', {}).get('aqi'),
+        'category': aqi_category(entry.get('main', {}).get('aqi'))
     }
     return features
 
 def aqi_category(aqi):
     if aqi is None:
         return "Unknown"
-    if aqi <= 50:
+    if aqi == 1:
         return "Good"
-    elif aqi <= 100:
+    elif aqi == 2:
+        return "Fair"
+    elif aqi == 3:
         return "Moderate"
-    elif aqi <= 150:
-        return "Unhealthy for Sensitive Groups"
-    elif aqi <= 200:
-        return "Unhealthy"
-    elif aqi <= 300:
-        return "Very Unhealthy"
+    elif aqi == 4:
+        return "Poor"
+    elif aqi == 5:
+        return "Very Poor"
     else:
-        return "Hazardous"
+        return "Unknown"
 
 # ==========================
 # FEATURE STORE
@@ -112,20 +115,20 @@ def store_features(features):
     ))
     conn.commit()
     conn.close()
-    print("Features stored successfully.")
+    print(f"Stored features for {features['timestamp']} successfully.")
 
 # ==========================
 # MAIN
 # ==========================
 def main():
     init_db()
-    raw_data = fetch_data()
-    if raw_data:
-        features = extract_features(raw_data)
-        store_features(features)
-        print("Stored features:", features)
+    forecast_list = fetch_data()
+    if forecast_list:
+        for entry in forecast_list:
+            features = extract_features(entry)
+            store_features(features)
     else:
-        print("No data fetched.")
+        print("No forecast data fetched.")
 
 if __name__ == "__main__":
     main()
