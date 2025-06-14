@@ -14,55 +14,70 @@ def load_model():
 
 model = load_model()
 
-def fetch_air_pollution(lat, lon):
-    api_url = f'http://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}'
+def fetch_air_pollution_forecast(lat, lon):
+    api_url = f'http://api.openweathermap.org/data/2.5/air_pollution/forecast?lat={lat}&lon={lon}&appid={API_KEY}'
     response = requests.get(api_url)
     if response.status_code == 200:
         data = response.json()
         if 'list' in data and len(data['list']) > 0:
-            return data['list'][0]
-    return None
+            return data['list']  # List of forecast points
+    return []
 
-def fetch_weather(lat, lon):
-    api_url = f'http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric'
+def fetch_weather_forecast(lat, lon):
+    api_url = f'http://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={API_KEY}&units=metric'
     response = requests.get(api_url)
     if response.status_code == 200:
-        return response.json()
-    return None
+        data = response.json()
+        if 'list' in data:
+            return data['list']  # 3-hourly forecasts
+    return []
 
 def predict_next_3_days(state, coords):
     if coords is None:
         return "Please select a location on the map."
 
     lat, lon = coords
-    air_data = fetch_air_pollution(lat, lon)
-    weather_data = fetch_weather(lat, lon)
+    air_data_list = fetch_air_pollution_forecast(lat, lon)
+    weather_data_list = fetch_weather_forecast(lat, lon)
 
-    if air_data is None:
-        return f"❌ Could not fetch air pollution data for {state} at ({lat:.2f}, {lon:.2f})."
-
-    components = air_data.get('components', {})
-    pm25 = components.get('pm2_5', 0.0)
-    pm10 = components.get('pm10', 0.0)
-    no2 = components.get('no2', 0.0)
-    so2 = components.get('so2', 0.0)
-    co = components.get('co', 0.0)
-    o3 = components.get('o3', 0.0)
-
-    # From weather API
-    if weather_data:
-        main = weather_data.get('main', {})
-        temperature = main.get('temp', 0.0)
-        humidity = main.get('humidity', 0.0)
-        pressure = main.get('pressure', 1013.0)
-    else:
-        temperature = 0.0
-        humidity = 0.0
-        pressure = 1013.0
+    if not air_data_list:
+        return f"❌ Could not fetch air pollution forecast data for {state} at ({lat:.2f}, {lon:.2f})."
 
     results = []
+
+    # We'll take the first available forecast for each day
     for i in range(1, 4):
-        future_time = datetime.utcnow() + timedelta(days=i)
+        target_date = (datetime.utcnow() + timedelta(days=i)).date()
+
+        # Find nearest air forecast for that day
+        air_forecast = next((a for a in air_data_list 
+                             if datetime.utcfromtimestamp(a['dt']).date() == target_date), None)
+
+        # Find nearest weather forecast for that day
+        weather_forecast = next((w for w in weather_data_list
+                                 if datetime.utcfromtimestamp(w['dt']).date() == target_date), None)
+
+        if air_forecast:
+            components = air_forecast.get('components', {})
+            pm25 = components.get('pm2_5', 0.0)
+            pm10 = components.get('pm10', 0.0)
+            no2 = components.get('no2', 0.0)
+            so2 = components.get('so2', 0.0)
+            co = components.get('co', 0.0)
+            o3 = components.get('o3', 0.0)
+        else:
+            pm25 = pm10 = no2 = so2 = co = o3 = 0.0
+
+        if weather_forecast:
+            main = weather_forecast.get('main', {})
+            temperature = main.get('temp', 0.0)
+            humidity = main.get('humidity', 0.0)
+            pressure = main.get('pressure', 1013.0)
+        else:
+            temperature = 0.0
+            humidity = 0.0
+            pressure = 1013.0
+
         X_future = pd.DataFrame([{
             'pm25': pm25,
             'pm10': pm10,
@@ -74,12 +89,21 @@ def predict_next_3_days(state, coords):
             'humidity': humidity,
             'pressure': pressure,
         }])
+
         X_future = X_future.astype(float)
         pred = model.predict(X_future)[0]
-        results.append(f"{future_time.date()}: Predicted AQI = {pred:.2f}")
+
+        results.append(
+            f"{target_date}: Predicted AQI = {pred:.2f} | "
+            f"PM2.5={pm25}, PM10={pm10}, NO2={no2}, SO2={so2}, CO={co}, O3={o3}, "
+            f"Temp={temperature}°C, Humidity={humidity}%, Pressure={pressure} hPa"
+        )
 
     return f"🌍 Location: {state} ({lat:.2f}, {lon:.2f})\n\n" + "\n".join(results)
 
+# ==========================
+# Gradio Interface
+# ==========================
 with gr.Blocks() as demo:
     gr.Markdown("# 🌤 Air Quality 3-Day Forecast App (India)")
     gr.Markdown("Select a location on the map and enter the state name to get the forecast.")
@@ -87,7 +111,7 @@ with gr.Blocks() as demo:
     state_input = gr.Textbox(label="State", placeholder="e.g., Assam")
     map_input = gr.Map(label="Pick location (latitude, longitude)", value=[24.13, 89.46], zoom=4)
     predict_button = gr.Button("Predict 3-Day AQI")
-    output = gr.Textbox(label="3-Day AQI Forecast")
+    output = gr.Textbox(label="3-Day AQI + Forecast")
 
     predict_button.click(
         fn=predict_next_3_days,
