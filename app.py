@@ -6,10 +6,9 @@ import requests
 from datetime import datetime, timedelta
 import os
 
-
 DB_NAME = 'feature_store.db'
 MODEL_PATH = 'models/latest_model.pkl'
-API_KEY = os.getenv('OPENWEATHER_API_KEY')  # Replace with your OpenWeather API key
+API_KEY = os.getenv('OPENWEATHER_API_KEY')  # Your OpenWeather API key
 
 def load_model():
     return joblib.load(MODEL_PATH)
@@ -22,7 +21,7 @@ def fetch_air_pollution_forecast(lat, lon):
     if response.status_code == 200:
         data = response.json()
         if 'list' in data and len(data['list']) > 0:
-            return data['list']  # List of forecast points
+            return data['list']
     return []
 
 def fetch_weather_forecast(lat, lon):
@@ -31,7 +30,7 @@ def fetch_weather_forecast(lat, lon):
     if response.status_code == 200:
         data = response.json()
         if 'list' in data:
-            return data['list']  # 3-hourly forecasts
+            return data['list']
     return []
 
 def predict_next_3_days(state, lat, lon):
@@ -49,11 +48,9 @@ def predict_next_3_days(state, lat, lon):
     for i in range(1, 4):
         target_date = (datetime.utcnow() + timedelta(days=i)).date()
 
-        # Find nearest air forecast for that day
         air_forecast = next((a for a in air_data_list 
                              if datetime.utcfromtimestamp(a['dt']).date() == target_date), None)
 
-        # Find nearest weather forecast for that day
         weather_forecast = next((w for w in weather_data_list
                                  if datetime.utcfromtimestamp(w['dt']).date() == target_date), None)
 
@@ -106,7 +103,17 @@ def predict_next_3_days(state, lat, lon):
 # ==========================
 with gr.Blocks() as demo:
     gr.Markdown("# 🌤 Air Quality 3-Day Forecast App (India)")
-    gr.Markdown("Enter state and coordinates to get the AQI forecast.")
+    gr.Markdown("Enter your state and coordinates to get the AQI forecast for the next 3 days.")
+    
+    gr.Markdown("""
+### 🟢 AQI Category Guide:
+- **0–50:** Good 🟢 — Air quality is satisfactory, little or no risk.
+- **51–100:** Moderate 🟡 — Acceptable air quality; some pollutants may pose a minor health concern for sensitive people.
+- **101–200:** Unhealthy for sensitive groups 🟠 — Sensitive individuals may experience health effects.
+- **201–300:** Unhealthy 🔴 — Everyone may begin to experience health effects.
+- **301–400:** Very Unhealthy 🟣 — Health alert: more serious health effects.
+- **401–500:** Hazardous ⚫ — Emergency conditions; the entire population is affected.
+""")
 
     state_input = gr.Textbox(label="State", placeholder="e.g., Assam")
     lat_input = gr.Number(label="Latitude", value=24.13)
