@@ -1,0 +1,8 @@
+pandas
+xgboost
+joblib
+scikit-learn
+requests
+gradio
+fastapi
+uvicorn
