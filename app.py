@@ -4,10 +4,12 @@ import joblib
 import gradio as gr
 import requests
 from datetime import datetime, timedelta
+import os
+
 
 DB_NAME = 'feature_store.db'
 MODEL_PATH = 'models/latest_model.pkl'
-API_KEY = os.getenv('cdc44044452cf706943159b88eb2bc4f')  # Replace with your OpenWeather API key
+API_KEY = os.getenv('OPENWEATHER_API_KEY')  # Replace with your OpenWeather API key
 
 def load_model():
     return joblib.load(MODEL_PATH)
