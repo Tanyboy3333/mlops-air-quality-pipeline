@@ -1,8 +1,8 @@
 pandas
-xgboost
 joblib
-scikit-learn
-requests
 gradio
 fastapi
 uvicorn
+xgboost
+scikit-learn
+requests
